@@ -21,18 +21,18 @@ from datetime import datetime
 # ---------------------------------------------------------------------------
 
 DISCORD_TOKEN = os.environ["DISCORD_TOKEN"]
-PUG_CHANNEL_ID = 1493952060608221314      # Channel ID to post notifications in
-PUG_ROLE_NAME = "pug"                    # Role name to ping (bot will create if missing)
-PLAYER_THRESHOLD = 3                     # Min players to trigger a ping
-POLL_INTERVAL_SECONDS = 300             # 5 minutes
+PUG_CHANNEL_ID = 1493952060608221314     # Channel ID to post notifications in
+PUG_ROLE_NAME = "pug"                   # Role name to ping (bot will create if missing)
+PLAYER_THRESHOLD = 3                    # Min players to trigger a ping
+POLL_INTERVAL_SECONDS = 300            # 5 minutes
 
 SERVERS = [
-    {"name": "NA East",  "host": "192.223.24.74",  "port": 28070},
-    {"name": ":: DOZER NY NWH ::", "host": "199.19.72.85", "port": 28070},
-    {"name": "THE HUB | Reborn", "host": "74.91.116.180", "port": 28070},
-    {"name": "The American NWH", "host": "74.91.115.117", "port": 28070},
-    {"name": "POMMESBUDE [CTF]", "host": "141.144.226.30", "port": 28070},
-    {"name": "NWH Tokyo", "host": "54.238.175.102", "port": 28070},
+    {"name": "NA East",           "host": "192.223.24.74",   "port": 28070},
+    {"name": ":: DOZER NY NWH ::", "host": "199.19.72.85",   "port": 28070},
+    {"name": "THE HUB | Reborn",  "host": "74.91.116.180",   "port": 28070},
+    {"name": "The American NWH",  "host": "74.91.115.117",   "port": 28070},
+    {"name": "POMMESBUDE [CTF]",  "host": "141.144.226.30",  "port": 28070},
+    {"name": "NWH Tokyo",         "host": "54.238.175.102",  "port": 28070},
 ]
 
 # ---------------------------------------------------------------------------
@@ -125,15 +125,12 @@ async def on_ready():
 async def poll_servers():
     await bot.wait_until_ready()
 
-    guild = bot.guilds[0] if bot.guilds else None
-    if not guild:
-        return
-
-    channel = guild.get_channel(PUG_CHANNEL_ID)
+    channel = bot.get_channel(PUG_CHANNEL_ID)
     if not channel:
         print(f"⚠️  Channel {PUG_CHANNEL_ID} not found")
         return
 
+    guild = channel.guild
     pug_role = discord.utils.get(guild.roles, name=PUG_ROLE_NAME)
 
     for server in SERVERS:
