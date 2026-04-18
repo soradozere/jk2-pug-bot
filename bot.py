@@ -2,8 +2,8 @@
 JK2 PUG Bot
 -----------
 - Polls configured JK2 servers every 5 minutes
-- Pings @pug role when 3+ players are detected on any server
-- Suggests random team split when 8+ players are present (4v4)
+- Pings @pug role only when a server crosses from below to above the player threshold
+- Won't ping again until the server empties out and refills
 - /pug command to self-assign/remove the pug role
 - /servers command to check live server status
 """
@@ -13,29 +13,23 @@ from discord.ext import commands, tasks
 from discord import app_commands
 import asyncio
 import socket
-import struct
-from datetime import datetime, timedelta
 import os
+from datetime import datetime
 
 # ---------------------------------------------------------------------------
 # CONFIG — edit these before deploying
 # ---------------------------------------------------------------------------
 
 DISCORD_TOKEN = os.environ["DISCORD_TOKEN"]
-PUG_CHANNEL_ID = 1495028158137762033      # Channel ID to post notifications in
+PUG_CHANNEL_ID = 000000000000000000      # Channel ID to post notifications in
 PUG_ROLE_NAME = "pug"                    # Role name to ping (bot will create if missing)
 PLAYER_THRESHOLD = 3                     # Min players to trigger a ping
 POLL_INTERVAL_SECONDS = 300             # 5 minutes
-COOLDOWN_MINUTES = 30                    # Don't re-ping same server for this long
 
 SERVERS = [
     {"name": "NA East",  "host": "192.223.24.74",  "port": 28070},
-    {"name": ":: DOZER NY NWH ::", "host": "199.19.72.85", "port": 28070},
-    {"name": "THE HUB | Reborn", "host": "74.91.116.180", "port": 28070},
-    {"name": "The American NWH", "host": "74.91.115.117", "port": 28070},
-    {"name": "POMMESBUDE [CTF]", "host": "141.144.226.30", "port": 28070},
-    {"name": "NWH Tokyo", "host": "54.238.175.102", "port": 28070},
-
+    # Add more servers here:
+    # {"name": "EU West", "host": "x.x.x.x", "port": 28070},
 ]
 
 # ---------------------------------------------------------------------------
@@ -43,35 +37,27 @@ SERVERS = [
 # ---------------------------------------------------------------------------
 
 def query_jk2_server(host: str, port: int, timeout: float = 3.0) -> dict:
-    """
-    Queries a JK2/Q3-protocol server via UDP.
-    Returns player names, count, map, and online status.
-    """
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.settimeout(timeout)
 
-        # Quake 3 getstatus query
         packet = b"\xff\xff\xff\xffgetstatus\x00"
         sock.sendto(packet, (host, port))
         data, _ = sock.recvfrom(4096)
         sock.close()
 
-        # Response starts with \xff\xff\xff\xffstatusResponse\n
         decoded = data[4:].decode("utf-8", errors="replace")
         if not decoded.startswith("statusResponse"):
             return {"online": False}
 
         lines = decoded.split("\n")
 
-        # Parse key-value pairs from line 1
         info_str = lines[1] if len(lines) > 1 else ""
         info_parts = info_str.strip("\\").split("\\")
         info = {}
         for i in range(0, len(info_parts) - 1, 2):
             info[info_parts[i]] = info_parts[i + 1]
 
-        # Parse player lines (score ping "name")
         players = []
         for line in lines[2:]:
             line = line.strip()
@@ -80,7 +66,6 @@ def query_jk2_server(host: str, port: int, timeout: float = 3.0) -> dict:
             parts = line.split(" ", 2)
             if len(parts) >= 3:
                 name = parts[2].strip('"')
-                # Strip Q3 colour codes (^0-^9)
                 clean_name = ""
                 i = 0
                 while i < len(name):
@@ -112,7 +97,10 @@ intents.guilds = True
 intents.members = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
-last_pinged: dict[str, datetime] = {}
+
+# Tracks whether each server was above threshold on the last poll
+# None = unknown (first run), True = was above, False = was below
+was_above_threshold: dict[str, bool] = {}
 
 
 @bot.event
@@ -150,32 +138,28 @@ async def poll_servers():
         data = await asyncio.to_thread(query_jk2_server, server["host"], server["port"])
 
         count = data.get("player_count", 0)
+        above = data.get("online", False) and count >= PLAYER_THRESHOLD
+        previously_above = was_above_threshold.get(key)
 
-        # If below threshold, reset cooldown so next surge triggers a ping
-        if not data.get("online") or count < PLAYER_THRESHOLD:
-            last_pinged.pop(key, None)
-            continue
+        # Update stored state
+        was_above_threshold[key] = above
 
-        # Respect cooldown
-        now = datetime.utcnow()
-        if key in last_pinged and (now - last_pinged[key]) < timedelta(minutes=COOLDOWN_MINUTES):
-            continue
+        # Ping only on the transition from below → above
+        # Skip on first poll (previously_above is None) to avoid a ping on bot startup
+        if above and previously_above is False:
+            role_mention = pug_role.mention if pug_role else f"@{PUG_ROLE_NAME}"
+            player_list = ", ".join(data["players"]) if data["players"] else "players unknown"
 
-        last_pinged[key] = now
+            msg = (
+                f"{role_mention} **{count} players on {server['name']}** — join up!\n"
+                f"🗺️  Map: `{data['map']}` | 👥 {player_list}\n"
+                f"```connect {server['host']}:{server['port']}```"
+            )
 
-        # Build the notification message
-        role_mention = pug_role.mention if pug_role else f"@{PUG_ROLE_NAME}"
-        player_list = ", ".join(data["players"]) if data["players"] else "players unknown"
-
-        msg = (
-            f"{role_mention} **{count} players on {server['name']}** — join up!\n"
-            f"🗺️  Map: `{data['map']}` | 👥 {player_list}\n"
-            f"```connect {server['host']}:{server['port']}```"
-        )
-
-
-        await channel.send(msg)
-        print(f"[{datetime.utcnow().strftime('%H:%M:%S')}] Pinged for {server['name']} ({count} players)")
+            await channel.send(msg)
+            print(f"[{datetime.utcnow().strftime('%H:%M:%S')}] Pinged for {server['name']} ({count} players)")
+        else:
+            print(f"[{datetime.utcnow().strftime('%H:%M:%S')}] {server['name']}: {count} players — no ping")
 
 
 # ---------------------------------------------------------------------------
@@ -187,7 +171,6 @@ async def pug_command(interaction: discord.Interaction):
     guild = interaction.guild
     pug_role = discord.utils.get(guild.roles, name=PUG_ROLE_NAME)
 
-    # Create the role if it doesn't exist yet
     if not pug_role:
         pug_role = await guild.create_role(
             name=PUG_ROLE_NAME,
