@@ -15,12 +15,13 @@ import asyncio
 import socket
 import struct
 from datetime import datetime, timedelta
+import os
 
 # ---------------------------------------------------------------------------
 # CONFIG — edit these before deploying
 # ---------------------------------------------------------------------------
 
-DISCORD_TOKEN = "HERE"
+DISCORD_TOKEN = os.environ["DISCORD_TOKEN"]
 PUG_CHANNEL_ID = 1495028158137762033      # Channel ID to post notifications in
 PUG_ROLE_NAME = "pug"                    # Role name to ping (bot will create if missing)
 PLAYER_THRESHOLD = 3                     # Min players to trigger a ping
