@@ -24,7 +24,7 @@ DISCORD_TOKEN = os.environ["DISCORD_TOKEN"]
 PUG_CHANNEL_ID = 1493952060608221314     # Channel ID to post notifications in
 PUG_ROLE_NAME = "pug"                   # Role name to ping (bot will create if missing)
 PLAYER_THRESHOLD = 3                    # Min players to trigger a ping
-POLL_INTERVAL_SECONDS = 300            # 5 minutes
+POLL_INTERVAL_SECONDS = 10            # 5 minutes
 COOLDOWN_MINUTES = 45                  # Minimum gap between pings for the same server
 
 SERVERS = [
@@ -233,6 +233,17 @@ async def servers_command(interaction: discord.Interaction):
         lines.append(status)
 
     await interaction.followup.send("\n".join(lines))
+
+
+@bot.tree.command(name="settings", description="Show the bot's current configuration and logic")
+async def settings_command(interaction: discord.Interaction):
+    msg = (
+        f"I will ping all `@{PUG_ROLE_NAME}` players when a server has "
+        f"**{PLAYER_THRESHOLD} or more** people online. "
+        f"I won't ping twice within **{COOLDOWN_MINUTES} minutes** about the same server."
+    )
+
+    await interaction.response.send_message(msg)
 
 
 # ---------------------------------------------------------------------------
