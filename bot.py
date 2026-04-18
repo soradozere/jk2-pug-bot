@@ -3,7 +3,7 @@ JK2 PUG Bot
 -----------
 - Polls configured JK2 servers every 5 minutes
 - Pings @pug role only when a server crosses from below to above the player threshold
-- Won't ping again until the server empties out and refills
+- Enforces a minimum cooldown between pings for the same server
 - /pug command to self-assign/remove the pug role
 - /servers command to check live server status
 """
@@ -14,7 +14,7 @@ from discord import app_commands
 import asyncio
 import socket
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # ---------------------------------------------------------------------------
 # CONFIG — edit these before deploying
@@ -24,7 +24,8 @@ DISCORD_TOKEN = os.environ["DISCORD_TOKEN"]
 PUG_CHANNEL_ID = 1493952060608221314     # Channel ID to post notifications in
 PUG_ROLE_NAME = "pug"                   # Role name to ping (bot will create if missing)
 PLAYER_THRESHOLD = 3                    # Min players to trigger a ping
-POLL_INTERVAL_SECONDS = 10            # 5 minutes
+POLL_INTERVAL_SECONDS = 300            # 5 minutes
+COOLDOWN_MINUTES = 45                  # Minimum gap between pings for the same server
 
 SERVERS = [
     {"name": "NA East",           "host": "192.223.24.74",   "port": 28070},
@@ -102,8 +103,9 @@ intents.members = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 # Tracks whether each server was above threshold on the last poll
-# None = unknown (first run), True = was above, False = was below
 was_above_threshold: dict[str, bool] = {}
+# Tracks when we last pinged for each server (for cooldown enforcement)
+last_pinged_at: dict[str, datetime] = {}
 
 
 @bot.event
@@ -133,6 +135,8 @@ async def poll_servers():
     guild = channel.guild
     pug_role = discord.utils.get(guild.roles, name=PUG_ROLE_NAME)
 
+    now = datetime.utcnow()
+
     for server in SERVERS:
         key = f"{server['host']}:{server['port']}"
         data = await asyncio.to_thread(query_jk2_server, server["host"], server["port"])
@@ -144,22 +148,34 @@ async def poll_servers():
         # Update stored state
         was_above_threshold[key] = above
 
-        # Ping only on the transition from below → above
-        # Skip on first poll (previously_above is None) to avoid a ping on bot startup
-        if above and not previously_above:
-            role_mention = pug_role.mention if pug_role else f"@{PUG_ROLE_NAME}"
-            player_list = ", ".join(data["players"]) if data["players"] else "players unknown"
+        # Only consider pinging if threshold was just crossed
+        if not (above and not previously_above):
+            print(f"[{now.strftime('%H:%M:%S')}] {server['name']}: {count} players — no ping")
+            continue
 
-            msg = (
-                f"{role_mention} **{count} players on {server['name']}** — join up!\n"
-                f"🗺️  Map: `{data['map']}` | 👥 {player_list}\n"
-                f"```connect {server['host']}:{server['port']}```"
+        # Enforce cooldown: block ping if we pinged this server recently
+        last_ping = last_pinged_at.get(key)
+        if last_ping and (now - last_ping) < timedelta(minutes=COOLDOWN_MINUTES):
+            minutes_since = (now - last_ping).total_seconds() / 60
+            print(
+                f"[{now.strftime('%H:%M:%S')}] {server['name']}: {count} players — "
+                f"cooldown active ({minutes_since:.0f}/{COOLDOWN_MINUTES} min)"
             )
+            continue
 
-            await channel.send(msg)
-            print(f"[{datetime.utcnow().strftime('%H:%M:%S')}] Pinged for {server['name']} ({count} players)")
-        else:
-            print(f"[{datetime.utcnow().strftime('%H:%M:%S')}] {server['name']}: {count} players — no ping")
+        # Ping!
+        last_pinged_at[key] = now
+        role_mention = pug_role.mention if pug_role else f"@{PUG_ROLE_NAME}"
+        player_list = ", ".join(data["players"]) if data["players"] else "players unknown"
+
+        msg = (
+            f"{role_mention} **{count} players on {server['name']}** — join up!\n"
+            f"🗺️  Map: `{data['map']}` | 👥 {player_list}\n"
+            f"```connect {server['host']}:{server['port']}```"
+        )
+
+        await channel.send(msg)
+        print(f"[{now.strftime('%H:%M:%S')}] Pinged for {server['name']} ({count} players)")
 
 
 # ---------------------------------------------------------------------------
