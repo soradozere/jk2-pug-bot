@@ -21,7 +21,7 @@ from datetime import datetime
 # ---------------------------------------------------------------------------
 
 DISCORD_TOKEN = os.environ["DISCORD_TOKEN"]
-PUG_CHANNEL_ID = 000000000000000000      # Channel ID to post notifications in
+PUG_CHANNEL_ID = 1493952060608221314      # Channel ID to post notifications in
 PUG_ROLE_NAME = "pug"                    # Role name to ping (bot will create if missing)
 PLAYER_THRESHOLD = 3                     # Min players to trigger a ping
 POLL_INTERVAL_SECONDS = 300             # 5 minutes
