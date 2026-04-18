@@ -24,7 +24,7 @@ DISCORD_TOKEN = os.environ["DISCORD_TOKEN"]
 PUG_CHANNEL_ID = 1493952060608221314     # Channel ID to post notifications in
 PUG_ROLE_NAME = "pug"                   # Role name to ping (bot will create if missing)
 PLAYER_THRESHOLD = 3                    # Min players to trigger a ping
-POLL_INTERVAL_SECONDS = 300            # 5 minutes
+POLL_INTERVAL_SECONDS = 10            # 5 minutes
 
 SERVERS = [
     {"name": "NA East",           "host": "192.223.24.74",   "port": 28070},
@@ -146,7 +146,7 @@ async def poll_servers():
 
         # Ping only on the transition from below → above
         # Skip on first poll (previously_above is None) to avoid a ping on bot startup
-        if above and previously_above is False:
+        if above and not previously_above:
             role_mention = pug_role.mention if pug_role else f"@{PUG_ROLE_NAME}"
             player_list = ", ".join(data["players"]) if data["players"] else "players unknown"
 
