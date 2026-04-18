@@ -28,8 +28,11 @@ POLL_INTERVAL_SECONDS = 300             # 5 minutes
 
 SERVERS = [
     {"name": "NA East",  "host": "192.223.24.74",  "port": 28070},
-    # Add more servers here:
-    # {"name": "EU West", "host": "x.x.x.x", "port": 28070},
+    {"name": ":: DOZER NY NWH ::", "host": "199.19.72.85", "port": 28070},
+    {"name": "THE HUB | Reborn", "host": "74.91.116.180", "port": 28070},
+    {"name": "The American NWH", "host": "74.91.115.117", "port": 28070},
+    {"name": "POMMESBUDE [CTF]", "host": "141.144.226.30", "port": 28070},
+    {"name": "NWH Tokyo", "host": "54.238.175.102", "port": 28070},
 ]
 
 # ---------------------------------------------------------------------------
