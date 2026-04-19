@@ -250,4 +250,4 @@ async def settings_command(interaction: discord.Interaction):
 # RUN
 # ---------------------------------------------------------------------------
 
-bot.run(DISCORD_TOKEN)
+##### bot.run(DISCORD_TOKEN)
