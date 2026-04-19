@@ -24,8 +24,12 @@ DISCORD_TOKEN = os.environ["DISCORD_TOKEN"]
 PUG_CHANNEL_ID = 1493952060608221314     # Channel ID to post notifications in
 PUG_ROLE_NAME = "pug"                   # Role name to ping (bot will create if missing)
 PLAYER_THRESHOLD = 3                    # Min players to trigger a ping
-POLL_INTERVAL_SECONDS = 10            # 5 minutes
-COOLDOWN_MINUTES = 45                  # Minimum gap between pings for the same server
+POLL_INTERVAL_SECONDS = 300            # 5 minutes
+COOLDOWN_MINUTES = 240                 # Minimum gap between pings for the same server (4 hours)
+
+# Player names to ignore when counting (spectator bots, etc.)
+# Case-insensitive; matches if name starts with any of these
+IGNORED_NAME_PREFIXES = ["padawan"]
 
 SERVERS = [
     {"name": "NA East",           "host": "192.223.24.74",   "port": 28070},
@@ -141,7 +145,13 @@ async def poll_servers():
         key = f"{server['host']}:{server['port']}"
         data = await asyncio.to_thread(query_jk2_server, server["host"], server["port"])
 
-        count = data.get("player_count", 0)
+        # Filter out ignored names (e.g. spectator bots) when deciding to ping
+        all_players = data.get("players", [])
+        real_players = [
+            p for p in all_players
+            if not any(p.lower().startswith(prefix.lower()) for prefix in IGNORED_NAME_PREFIXES)
+        ]
+        count = len(real_players)
         above = data.get("online", False) and count >= PLAYER_THRESHOLD
         previously_above = was_above_threshold.get(key)
 
@@ -166,7 +176,7 @@ async def poll_servers():
         # Ping!
         last_pinged_at[key] = now
         role_mention = pug_role.mention if pug_role else f"@{PUG_ROLE_NAME}"
-        player_list = ", ".join(data["players"]) if data["players"] else "players unknown"
+        player_list = ", ".join(real_players) if real_players else "players unknown"
 
         msg = (
             f"{role_mention} **{count} players on {server['name']}** — join up!\n"
@@ -250,4 +260,4 @@ async def settings_command(interaction: discord.Interaction):
 # RUN
 # ---------------------------------------------------------------------------
 
-##### bot.run(DISCORD_TOKEN)
+bot.run(DISCORD_TOKEN)
