@@ -21,7 +21,12 @@ from datetime import datetime, timedelta
 # ---------------------------------------------------------------------------
 
 DISCORD_TOKEN = os.environ["DISCORD_TOKEN"]
-PUG_CHANNEL_ID = 1493952060608221314     # Channel ID to post notifications in
+PUG_CHANNEL_IDS = [
+    1493952060608221314,       # Hub — #4v4-pug channel
+    1102571802611421254,       # Andozer - #6v6-random-map
+    # Add more channel IDs here as new Discord servers add the bot:
+    # 1234567890123456789,     # Other community — #pug channel
+]
 PUG_ROLE_NAME = "pug"                   # Role name to ping (bot will create if missing)
 PLAYER_THRESHOLD = 3                    # Min players to trigger a ping
 POLL_INTERVAL_SECONDS = 300            # 5 minutes
@@ -131,13 +136,17 @@ async def on_ready():
 async def poll_servers():
     await bot.wait_until_ready()
 
-    channel = bot.get_channel(PUG_CHANNEL_ID)
-    if not channel:
-        print(f"⚠️  Channel {PUG_CHANNEL_ID} not found")
-        return
+    # Resolve all configured channels
+    channels = []
+    for channel_id in PUG_CHANNEL_IDS:
+        ch = bot.get_channel(channel_id)
+        if ch:
+            channels.append(ch)
+        else:
+            print(f"⚠️  Channel {channel_id} not found")
 
-    guild = channel.guild
-    pug_role = discord.utils.get(guild.roles, name=PUG_ROLE_NAME)
+    if not channels:
+        return
 
     now = datetime.utcnow()
 
@@ -175,17 +184,26 @@ async def poll_servers():
 
         # Ping!
         last_pinged_at[key] = now
-        role_mention = pug_role.mention if pug_role else f"@{PUG_ROLE_NAME}"
         player_list = ", ".join(real_players) if real_players else "players unknown"
 
-        msg = (
-            f"{role_mention} **{count} players on {server['name']}** — join up!\n"
-            f"🗺️  Map: `{data['map']}` | 👥 {player_list}\n"
-            f"```connect {server['host']}:{server['port']}```"
-        )
+        # Send to every configured channel, resolving the @pug role per-guild
+        for channel in channels:
+            pug_role = discord.utils.get(channel.guild.roles, name=PUG_ROLE_NAME)
+            role_mention = pug_role.mention if pug_role else f"@{PUG_ROLE_NAME}"
 
-        await channel.send(msg)
-        print(f"[{now.strftime('%H:%M:%S')}] Pinged for {server['name']} ({count} players)")
+            msg = (
+                f"{role_mention} **{count} players on {server['name']}** — join up!\n"
+                f"🗺️  Map: `{data['map']}` | 👥 {player_list}\n"
+                f"```connect {server['host']}:{server['port']}```"
+            )
+
+            try:
+                await channel.send(msg)
+            except Exception as e:
+                print(f"⚠️  Failed to send to #{channel.name} in {channel.guild.name}: {e}")
+
+        print(f"[{now.strftime('%H:%M:%S')}] Pinged for {server['name']} ({count} players) "
+              f"across {len(channels)} channel(s)")
 
 
 # ---------------------------------------------------------------------------
