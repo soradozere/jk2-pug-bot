@@ -28,7 +28,7 @@ PUG_CHANNEL_IDS = [
     # 1234567890123456789,     # Other community — #pug channel
 ]
 PUG_ROLE_NAME = "pug"                   # Role name to ping (bot will create if missing)
-PLAYER_THRESHOLD = 3                    # Min players to trigger a ping
+PLAYER_THRESHOLD = 5                    # Min players to trigger a ping
 POLL_INTERVAL_SECONDS = 300            # 5 minutes
 COOLDOWN_MINUTES = 240                 # Minimum gap between pings for the same server (4 hours)
 
